@@ -51,6 +51,14 @@ const SYN = [[/\bfin ?aid\b|\bfa\b/g,"financial aid"],[/\bmoney back\b|\bextra m
   [/\b(mom|dad|mother|father|my parents?)\b/g,"parent"],[/\bstate grant\b/g,"pasg pa state grant"],[/\bloan money\b/g,"loan"]];
 // Vietnamese, Spanish and Chinese keywords → English words the intents understand
 const FOREIGN = [
+  // Hindi (Devanagari) and romanized Hindi
+  [/नमस्ते|नमस्कार|\bnamaste\b/g," hello "],[/धन्यवाद|शुक्रिया|\bdhanyavad\b|\bshukriya\b/g," thanks "],
+  [/ठीक (महसूस )?नहीं|उदास|परेशान हूँ|तनाव/g," not feeling good stressed "],[/आत्महत्या|मरना चाहता|मरना चाहती/g," suicide "],
+  [/रिफ़ंड|रिफंड|पैसे वापस/g," refund "],[/स्कॉलरशिप|छात्रवृत्ति/g," scholarship "],[/लोन|ऋण|कर्ज़|कर्ज/g," loan "],
+  [/बिल|फ़ीस|फीस|ट्यूशन/g," bill "],[/ग्रांट|सहायता|अनुदान/g," grant aid "],[/नहीं आया|नहीं आई|नहीं मिला|नहीं मिली|\bnahi aaya\b|\bnahi mila\b/g," hasn't arrived "],
+  [/होल्ड/g," hold "],[/वेरिफ़िकेशन|वेरिफिकेशन|सत्यापन/g," verification "],[/माता-पिता|माता पिता|मम्मी|पापा|\bmummy\b|\bpapa\b/g," parent "],
+  [/कॉल|फ़ोन|फोन/g," call phone "],[/कितना (भरना|देना)|\bkitna (bharna|dena)\b/g," how much do i owe "],[/कब|\bkab\b/g," when "],[/क्यों|\bkyun\b/g," why "],
+  [/sfs.{0,30}या.{0,10}bursar/g," sfs or bursar who do i ask "],[/किश्त|किस्त/g," payment plan "],
   [/xin chào|chào bạn|^chào|^hola\b|^buenas|你好|您好|嗨/g," hello "],
   [/cảm ơn|cám ơn|gracias|谢谢|多谢/g," thanks "],
   [/tạm biệt|adiós|再见/g," bye "],

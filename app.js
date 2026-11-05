@@ -232,7 +232,7 @@ function botBubble(m){
   if (m.blocked) return `<div class="bub bot"><span style="color:var(--red);font-size:15px">That looks like an ID, SSN or account number, so it wasn't sent. Please remove it.</span></div>`;
   const a = m.a, L = (typeof APP_UI !== "undefined" && APP_UI[m.lg]) || {prep:"This needs a person. Prep my case", more:"More on", en:""};
   const ct = a.office ? (m.lg && m.lg !== "en" && typeof UI !== "undefined" ? [a.office === "Bursar" ? UI[m.lg].bursar : UI[m.lg].sfs, CONTACT[a.office][1]] : CONTACT[a.office]) : null;
-  const parts = a.text.split(/(?<=[.!?。！？])\s?/); const lead = parts.shift(), rest = parts.join(m.lg === "zh" ? "" : " ");
+  const parts = a.text.split(/(?<=[.!?。！？।])\s?/); const lead = parts.shift(), rest = parts.join(m.lg === "zh" ? "" : " ");
   const meta = (ct || a.src) ? `<div class="meta-row">${ct ? `<span class="badge b-gray">${esc(ct[0])} · ${ct[1]}</span>` : ""}${a.src ? `<a href="${SRC[a.src].u}" target="_blank" rel="noopener" style="font-size:13px">${esc(SRC[a.src].t)}</a>` : ""}</div>` : "";
   const more = a.human ? `<button class="btn secondary" style="padding:11px;font-size:15px" data-act="help" data-topic-help="${a.topic || "other"}" data-text="${esc(m.q)}">${esc(L.prep)}</button>`
     : (a.topic && CARDS[a.topic] ? `<button class="btn plain" style="padding:4px 0;font-size:15px;justify-content:flex-start" data-topic="${a.topic}">${esc(L.more)} ${esc((m.lg && m.lg !== "en" && typeof TOPIC_TR !== "undefined" && TOPIC_TR[m.lg][a.topic] ? TOPIC_TR[m.lg][a.topic].t : CARDS[a.topic].title).toLowerCase())}</button>` : "");

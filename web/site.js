@@ -6,7 +6,7 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt
 const SENSITIVE = /\b916\d{6}\b|\b\d{3}-\d{2}-\d{4}\b|\b\d{9}\b|\b\d{12,19}\b/;
 const COLORS = {late:"#FF9500", bill:"#981B31", refund:"#34C759", hold:"#FF3B30", verif:"#007AFF", sap:"#5856D6", loans:"#30B0C7", other:"#8E8E93"};
 const ORDER = ["late","bill","refund","hold","verif","sap","loans","other"];
-const LOCALE = {en:"en-US", vi:"vi-VN", es:"es-US", zh:"zh-CN"};
+const LOCALE = {en:"en-US", vi:"vi-VN", es:"es-US", zh:"zh-CN", hi:"hi-IN"};
 
 // ---- language
 let lang = "en";
@@ -38,7 +38,7 @@ function bubble(m){
   if (m.typing) return `<div class="bub bot" aria-label="Typing"><span class="dots"><i></i><i></i><i></i></span></div>`;
   if (m.blocked) return `<div class="bub bot"><span class="warn">${esc(T().blocked)}</span></div>`;
   const a = localize(m.a), ct = a.office ? office(a.office) : null;
-  const parts = a.text.split(/(?<=[.!?。！？])\s?/); const lead = parts.shift(), rest = parts.join(lang === "zh" ? "" : " ");
+  const parts = a.text.split(/(?<=[.!?。！？।])\s?/); const lead = parts.shift(), rest = parts.join(lang === "zh" ? "" : " ");
   const meta = (ct || a.src) ? `<div class="meta">${ct ? `<span class="badge">${esc(ct[0])} · ${ct[1]}</span>` : ""}${a.src ? `<a href="${SRC[a.src].u}" target="_blank" rel="noopener">${esc(T().source)}: ${esc(SRC[a.src].t)}</a>` : ""}</div>` : "";
   const next = a.human ? `<div class="next"><a class="btn solid" href="../">${esc(T().prep)}</a><a class="btn" href="#contact">${esc(T().contact)}</a></div>`
     : (a.topic && CARDS[a.topic] ? `<div class="next"><button type="button" class="btn" data-topic="${a.topic}">${esc(T().more)} ${esc(topicText(a.topic).t.toLowerCase())}</button></div>` : "");
