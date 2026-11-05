@@ -53,6 +53,8 @@ function norm(q){ let t = " " + q.toLowerCase().replace(/[’']/g, "'").replace(
 
 // ---------- intents: patterns with weights (best score wins, not first match) ----------
 const I = {
+  crisis:[[/\bsuicid|\bkill (myself|me)\b|\bend (my|it all|my life)\b|\bhurt(ing)? myself\b|\bself.?harm|\b(don'?t|do not) want to (live|be here|be alive)\b|\bwant to die\b|\bno reason to live\b/,20]],
+  wellbeing:[[/\bnot (feeling|doing) (too |so |very )?(good|great|well|ok|okay)\b|\bfeel(ing)? (really |so |very |kind of |kinda |pretty |super )?(sad|down|depressed|lonely|alone|sick|awful|terrible|hopeless|bad|anxious|empty|lost)\b|\bdepress|\blonely\b|\bmental health\b|\btherap(y|ist)\b|\bcan'?t sleep\b|\b(rough|bad|hard) (day|week|time)\b|\bhaving a hard time\b|\bnot okay\b|\bstruggling\b/,6]],
   help:[[/^ ?(help|i need help|help me|can (you|u) help( me)?|i have a question|question|anyone there)\b/,5]],
   payback:[[/\bpay (it |them |this )?back\b|\brepay\b|\bpaid back\b/,5]],
   greet:[[/^ ?(hi|hey|hello|hiya|yo|sup|howdy|good (morning|afternoon|evening)|what'?s up)\b/,5]],
@@ -61,7 +63,7 @@ const I = {
   howru:[[/\bhow are (you|u)\b|\bhow'?s it going\b/,5]],
   who:[[/\bwho are (you|u)\b|\bwhat are you\b|\bare you (a )?(bot|ai|real|human|person)\b|\bwhat can you (do|help)\b|\bhow does this work\b/,5]],
   joke:[[/\b(joke|funny|make me laugh)\b/,5]],
-  stress:[[/\b(stressed|stress|panic|panicking|freaking out|anxious|worried|scared|broke|can'?t afford|crying|overwhelmed|ugh|this sucks|so done)\b/,3]],
+  stress:[[/\b(stressed|stressing|stressful|stress|panic|panicking|freaking out|anxious|worried|scared|broke|can'?t afford|crying|overwhelmed|ugh|this sucks|so done)\b/,3]],
   angry:[[/\b(useless|stupid|dumb|idiot|hate (this|sfs)|worst|nobody answers|no one answers|never answer)\b/,3]],
   my_owe:[[/\b(how much|what) (do|will|should) i (owe|pay|have to pay)\b|\bmy (balance|total)\b|\bwhat'?s my (balance|bill)\b|\bhow much is my bill\b|\bhow much (money )?(is|do i have) left\b/,6]],
   my_aid:[[/\b(where|when) is my (aid|grant|loan|money)\b|\bmy (aid|grants?|loans?) (coming|arrive|status)\b|\bwhat aid do i (have|get)\b|\bhow much aid\b/,6]],
@@ -130,18 +132,20 @@ function personal(kind, ctx){
 // ---------- main ----------
 function answer(q, ctx = {}){
   const t = norm(q), words = t.trim().split(" ").filter(Boolean);
+  if (I.crisis[0][0].test(t)) return say("I’m really glad you told me. If you might hurt yourself or you’re in danger, please reach out right now: call or text 988 (Suicide & Crisis Lifeline), or call 911. On campus, Temple Police is 215-204-1234. Tuttleman Counseling Services is 215-204-7276 (after hours, press 1). You don’t have to go through this alone.", {topic:null, crisis:true});
   const g = glossary(t); if (g) return g;
   const ranked = score(t);
-  const SMALL = ["help","greet","thanks","bye","howru","who","joke","stress","angry"];
+  const SMALL = ["wellbeing","help","greet","thanks","bye","howru","who","joke","stress","angry"];
   const real = ranked.find(r => !SMALL.includes(r[0]));
-  const feel = ranked.find(r => r[0] === "stress" || r[0] === "angry");
+  const feel = ranked.find(r => r[0] === "stress" || r[0] === "angry" || r[0] === "wellbeing");
   let [top, s] = ranked[0] || [null, 0];
   if (real && (real[1] >= 3 || (feel && real[1] >= 2) || !SMALL.includes(top))) [top, s] = real;
   const second = ranked.find(r => !SMALL.includes(r[0]) && r[0] !== top);
-  const empathy = feel && real ? (feel[0] === "angry" ? "Sorry, that’s really frustrating. " : "I hear you, that’s stressful. ") : "";
+  const empathy = feel && real ? (feel[0] === "angry" ? "Sorry, that’s really frustrating. " : feel[0] === "wellbeing" ? "Sorry you’re having a rough time. " : "I hear you, that’s stressful. ") : "";
 
   // small talk (only when there’s no real question in the message)
   if (!real || real[1] < (feel ? 2 : 3)){
+    if (top === "wellbeing") return say("I’m sorry you’re not feeling good. You don’t have to deal with it alone: Temple’s Tuttleman Counseling Services can help at 215-204-7276 (after hours, press 1). If money stress is part of it, I can help you sort that out too, whenever you’re ready.", {chips:["Money is stressing me out","How much do I owe?"]});
     if (top === "help") return say("Of course. Tell me what’s going on in your own words, or pick one of these:", {chips:MENU});
     if (top === "greet") return say(`Hi${ctx.persona ? " " + ctx.persona.name : ""}! I can help with aid, bills, refunds, holds and anything else SFS. What’s going on?`, {chips:MENU});
     if (top === "howru") return say("Doing well, thanks for asking! More importantly, how’s your money situation this semester? I can check what you owe or what’s still coming.", {chips:MENU});
