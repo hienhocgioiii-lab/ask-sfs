@@ -12,13 +12,8 @@ const ORDER = ["late","bill","refund","hold","verif","sap","loans","other"];
 const classify = t => { for (const [k, re] of Object.entries(TOPIC_KEYS)) if (re.test(t)) return k; return "other"; };
 function retrieve(text){ const w = (text.toLowerCase().match(/[a-z]+/g) || []);
   return KB.map(e => ({e, s: w.reduce((a, x) => a + (x.length > 2 && e.keys.includes(x) ? 2 : 0) + (x.length > 4 && e.text.toLowerCase().includes(x) ? .3 : 0), 0)})).sort((a, b) => b.s - a.s); }
-function answerFor(q){
-  const t = classify(q), c = CARDS[t];
-  const personal = /\bmy (exact|aid amount|account)|how much (do i|will i) get|why (do|does) (i|my)|is my .* (processed|approved)/i.test(q);
-  if (c) return {topic:t, text:c.brief, steps:c.steps, src:c.src, office:TOPICS[t].office, human:personal || t === "other"};
-  const h = retrieve(q)[0]; const e = h && h.s > 0 ? h.e : KB[0];
-  return {topic:t, text:e.text.split(". ").slice(0, 2).join(". ") + ".", steps:[], src:e.src, office:e.office, human:true};
-}
+let lastTopic = null;
+function answerFor(q){ const a = Brain.answer(q, {last:lastTopic}); if (a.topic) lastTopic = a.topic; return a; }
 
 // ---- chips
 const CHIPS = ["My grant hasn’t shown up and my bill is due", "When do I get my refund?", "Why do I have a hold?", "SFS or the Bursar, who do I ask?"];
@@ -30,12 +25,15 @@ function bubble(m){
   if (m.me) return `<div class="bub me">${esc(m.text)}</div>`;
   if (m.typing) return `<div class="bub bot" aria-label="Typing"><span class="dots"><i></i><i></i><i></i></span></div>`;
   if (m.blocked) return `<div class="bub bot"><span class="warn">That looks like an ID, SSN or account number, so it wasn’t sent. Please remove it and ask again.</span></div>`;
-  const a = m.a, [who, num] = CONTACT[a.office];
-  const parts = a.text.split(/(?<=\.)\s/); const lead = parts.shift(), rest = parts.join(" ");
+  const a = m.a, ct = a.office ? CONTACT[a.office] : null;
+  const parts = a.text.split(/(?<=[.!?])\s/); const lead = parts.shift(), rest = parts.join(" ");
+  const meta = (ct || a.src) ? `<div class="meta">${ct ? `<span class="badge">${esc(ct[0])} · ${ct[1]}</span>` : ""}${a.src ? `<a href="${SRC[a.src].u}" target="_blank" rel="noopener">Source: ${esc(SRC[a.src].t)}</a>` : ""}</div>` : "";
+  const next = a.human ? `<div class="next"><a class="btn solid" href="../">Prep my case in the app</a><a class="btn" href="#contact">Contact info</a></div>`
+    : (a.topic && CARDS[a.topic] ? `<div class="next"><button type="button" class="btn" data-topic="${a.topic}">More on ${esc(CARDS[a.topic].title.toLowerCase())}</button></div>` : "");
+  const chips = (a.chips || []).length ? `<div class="next">${a.chips.map(c => `<button type="button" class="chip" data-q="${esc(c)}">${esc(c)}</button>`).join("")}</div>` : "";
   return `<div class="bub bot"><span><span class="lead">${esc(lead)}</span>${rest ? " " + esc(rest) : ""}</span>
-    ${a.steps.length ? `<ol>${a.steps.map(s => `<li>${esc(s)}</li>`).join("")}</ol>` : ""}
-    <div class="meta"><span class="badge">${esc(who)} · ${num}</span><a href="${SRC[a.src].u}" target="_blank" rel="noopener">Source: ${esc(SRC[a.src].t)}</a></div>
-    <div class="next">${a.human ? `<a class="btn solid" href="../">Prep my case in the app</a><a class="btn" href="#contact">Contact info</a>` : `<button type="button" class="btn" data-topic="${a.topic}">More on ${esc(CARDS[a.topic].title.toLowerCase())}</button>`}</div>
+    ${a.steps && a.steps.length ? `<ol>${a.steps.map(s => `<li>${esc(s)}</li>`).join("")}</ol>` : ""}
+    ${meta}${next}${chips}
   </div>`;
 }
 function renderChat(){

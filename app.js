@@ -54,12 +54,39 @@ const TILE = {late:["clock","#FF9500"], bill:["bill","#A41E35"], refund:["refund
 const classify = t => { for (const [k, re] of Object.entries(TOPIC_KEYS)) if (re.test(t)) return k; return "other"; };
 function retrieve(text){ const w = (text.toLowerCase().match(/[a-z]+/g) || []);
   return KB.map(e => ({e, s: w.reduce((a, x) => a + (x.length > 2 && e.keys.includes(x) ? 2 : 0) + (x.length > 4 && e.text.toLowerCase().includes(x) ? .3 : 0), 0)})).sort((a, b) => b.s - a.s); }
-function answerFor(q){
-  const t = classify(q), c = CARDS[t];
-  const personal = /\bmy (exact|aid amount|account)|how much (do i|will i) get|why (do|does) (i|my)|is my .* (processed|approved)/i.test(q);
-  if (c) return {topic:t, text:c.brief, steps:c.steps, src:c.src, office:TOPICS[t].office, human:personal || t === "other"};
-  const h = retrieve(q)[0]; const e = h && h.s > 0 ? h.e : KB[0];
-  return {topic:t, text:e.text.split(". ").slice(0, 2).join(". ") + ".", steps:[], src:e.src, office:e.office, human:true};
+function brainCtx(){ return {persona:cur, calc:cur ? calc() : null, tasks:cur ? openTasks() : [], last:st.lastTopic || null}; }
+function answerFor(q){ return Brain.answer(q, brainCtx()); }
+
+// Real AI (only where the page runs inside Claude with the "sample" capability); falls back to the brain.
+let samplerP = null;
+function sampler(){ if (!samplerP) samplerP = (window.claude && typeof window.claude.use === "function") ? window.claude.use("sample").catch(() => null) : Promise.resolve(null); return samplerP; }
+async function aiAnswer(q){
+  const sample = await sampler(); if (!sample) return null;
+  const c = calc(), tasks = openTasks().slice(0, 4).map(([, x]) => x.t + (x.date ? " (by " + x.date + ")" : ""));
+  const facts = KB.map(e => `[${e.src}] (${e.office}) ${e.text}`).join("\n");
+  const hist = st.chat.filter(m => m.me || m.a).slice(-6).map(m => m.me ? "Student: " + m.text : "Ask SFS: " + m.a.text).join("\n");
+  const prompt = `You are Ask SFS, a warm, sharp helper for Temple University Student Financial Services, inside a student's phone app.
+Answer like a knowledgeable friend who works at SFS: direct, specific, kind, never robotic. Use ONLY the facts below; if they don't cover it, say what you don't know and who to contact. Never invent amounts, dates, rules or phone numbers. Small talk is fine: reply naturally and steer back to how you can help. Off-topic questions: answer in one friendly line and say it's outside SFS.
+Never ask for SSNs, Temple IDs, passwords or bank numbers.
+
+OFFICIAL FACTS (source key in brackets):
+${facts}
+Contacts: SFS 215-204-2244, Mon-Fri 8:30-5, sfs@temple.edu. Bursar 215-204-7269, bursar@temple.edu.
+
+THIS STUDENT (sample data): ${cur.name}, ${cur.desc}. Spring 2027 bill ${money(c.bill)}. Aid paying on time ${money(c.early)}; aid after add/drop ${money(c.late)} (${cur.aid.filter(x => x[1] === "late").map(x => x[0]).join(", ") || "none"}). Due Jan 21, 2027 after on-time aid: ${money(c.short)}. Open tasks: ${tasks.join("; ") || "none"}.
+
+CONVERSATION SO FAR:
+${hist || "(none)"}
+Student: ${q}
+
+Reply with JSON only: {"text": "1-3 short sentences, first sentence answers directly", "steps": ["0-3 short action steps"], "office": "SFS"|"Bursar"|"Both"|null, "src": one of ${JSON.stringify(Object.keys(SRC))} or null, "topic": one of ${JSON.stringify(Object.keys(CARDS))} or null, "human": true only if a person must look at their account, "chips": ["0-3 short follow-up questions the student might tap"]}`;
+  try {
+    const r = await sample.json(prompt, {modelTier:"quick", cache:false});
+    if (!r || typeof r.text !== "string" || !r.text.trim()) return null;
+    return {text:r.text.trim(), steps:Array.isArray(r.steps) ? r.steps.filter(x => typeof x === "string").slice(0, 4) : [],
+      office:["SFS","Bursar","Both"].includes(r.office) ? r.office : null, src:SRC[r.src] ? r.src : null,
+      topic:CARDS[r.topic] ? r.topic : null, human:!!r.human, chips:Array.isArray(r.chips) ? r.chips.filter(x => typeof x === "string").slice(0, 3) : [], ai:true};
+  } catch (e) { return null; }
 }
 const CONTACT = {Bursar:["Bursar's Office","215-204-7269"], Both:["SFS","215-204-2244"], SFS:["SFS","215-204-2244"]};
 
@@ -203,12 +230,15 @@ function pageAsk(){
 function botBubble(m){
   if (m.typing) return `<div class="bub bot typing" aria-label="Typing"><span class="dots"><i></i><i></i><i></i></span></div>`;
   if (m.blocked) return `<div class="bub bot"><span style="color:var(--red);font-size:15px">That looks like an ID, SSN or account number, so it wasn't sent. Please remove it.</span></div>`;
-  const a = m.a, [who, num] = CONTACT[a.office];
-  const parts = a.text.split(/(?<=\.)\s/); const lead = parts.shift(), rest = parts.join(" ");
+  const a = m.a, ct = a.office ? CONTACT[a.office] : null;
+  const parts = a.text.split(/(?<=[.!?])\s/); const lead = parts.shift(), rest = parts.join(" ");
+  const meta = (ct || a.src) ? `<div class="meta-row">${ct ? `<span class="badge b-gray">${esc(ct[0])} · ${ct[1]}</span>` : ""}${a.src ? `<a href="${SRC[a.src].u}" target="_blank" rel="noopener" style="font-size:13px">${esc(SRC[a.src].t)}</a>` : ""}</div>` : "";
+  const more = a.human ? `<button class="btn secondary" style="padding:11px;font-size:15px" data-act="help" data-topic-help="${a.topic || "other"}" data-text="${esc(m.q)}">This needs a person. Prep my case</button>`
+    : (a.topic && CARDS[a.topic] ? `<button class="btn plain" style="padding:4px 0;font-size:15px;justify-content:flex-start" data-topic="${a.topic}">More on ${esc(CARDS[a.topic].title.toLowerCase())}</button>` : "");
+  const chips = (a.chips || []).length ? `<div class="chips" style="padding:0;flex-wrap:wrap">${a.chips.map(c => `<button class="chip" style="font-size:14px;padding:7px 12px;background:var(--fill2)" data-q="${esc(c)}">${esc(c)}</button>`).join("")}</div>` : "";
   return `<div class="bub bot"><span><span class="lead">${esc(lead)}</span>${rest ? " " + esc(rest) : ""}</span>
-    ${a.steps.length ? `<ol>${a.steps.map(s => `<li>${esc(s)}</li>`).join("")}</ol>` : ""}
-    <div class="meta-row"><span class="badge b-gray">${esc(who)} · ${num}</span><a href="${SRC[a.src].u}" target="_blank" rel="noopener" style="font-size:13px">${esc(SRC[a.src].t)}</a></div>
-    ${a.human ? `<button class="btn secondary" style="padding:11px;font-size:15px" data-act="help" data-topic-help="${a.topic}" data-text="${esc(m.q)}">This needs a person. Prep my case</button>` : `<button class="btn plain" style="padding:4px 0;font-size:15px;justify-content:flex-start" data-topic="${a.topic}">More on ${esc(CARDS[a.topic]?.title || "this")}</button>`}
+    ${a.steps && a.steps.length ? `<ol>${a.steps.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : ""}
+    ${meta}${more}${chips}
   </div>`;
 }
 function composer(){ return `<div class="composer"><div class="field"><textarea id="askInput" rows="1" placeholder="Ask about aid, bills, refunds…" aria-label="Your question"></textarea>
@@ -219,7 +249,11 @@ function ask(q){
   if (SENSITIVE.test(q)) { st.chat.push({blocked:true}); render(); return; }
   st.chat.push({typing:true}); render();
   S.stats.asked++; save();
-  setTimeout(() => { st.chat.pop(); const a = answerFor(q); if (!a.human) { S.stats.solved++; save(); } st.chat.push({a, q}); render(); }, 650);
+  const t0 = Date.now();
+  aiAnswer(q).then(ai => {
+    const a = ai || answerFor(q);
+    setTimeout(() => { st.chat = st.chat.filter(m => !m.typing); if (a.topic) st.lastTopic = a.topic; if (!a.human) { S.stats.solved++; save(); } st.chat.push({a, q}); render(); }, Math.max(0, 550 - (Date.now() - t0)));
+  });
 }
 
 // ---- Money
@@ -309,7 +343,7 @@ function helpResult(h){
 function bindStudent(){
   app.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { st.tab = b.dataset.tab; st.stack = []; st.edit = false; render(); });
   app.querySelectorAll("[data-topic]").forEach(b => b.onclick = () => { st.stack.push(b.dataset.topic); render(); });
-  app.querySelectorAll(".suggest [data-q]").forEach(b => b.onclick = () => ask(b.dataset.q));
+  app.querySelectorAll(".suggest [data-q], .bub [data-q]").forEach(b => b.onclick = () => ask(b.dataset.q));
   app.querySelectorAll("[data-task]").forEach(b => b.onclick = () => { const m = (S.todo[S.stu] ||= {}); m[b.dataset.task] = !m[b.dataset.task]; save(); render(); });
   app.querySelectorAll("[data-amt]").forEach(inp => inp.onchange = () => { const id = inp.dataset.amt, v = Math.max(0, +inp.value.replace(/[^\d.]/g, "") || 0);
     if (id[0] === "b") cur.bill[+id.slice(1)][1] = v; else cur.aid[+id.slice(1)][2] = v; render(); });
