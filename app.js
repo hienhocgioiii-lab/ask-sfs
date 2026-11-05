@@ -79,7 +79,7 @@ CONVERSATION SO FAR:
 ${hist || "(none)"}
 Student: ${q}
 
-Reply with JSON only: {"text": "1-3 short sentences, first sentence answers directly", "steps": ["0-3 short action steps"], "office": "SFS"|"Bursar"|"Both"|null, "src": one of ${JSON.stringify(Object.keys(SRC))} or null, "topic": one of ${JSON.stringify(Object.keys(CARDS))} or null, "human": true only if a person must look at their account, "chips": ["0-3 short follow-up questions the student might tap"]}`;
+Always reply in the same language the student writes in (English, Vietnamese, Spanish, Chinese or any other).\nReply with JSON only: {"text": "1-3 short sentences, first sentence answers directly", "steps": ["0-3 short action steps"], "office": "SFS"|"Bursar"|"Both"|null, "src": one of ${JSON.stringify(Object.keys(SRC))} or null, "topic": one of ${JSON.stringify(Object.keys(CARDS))} or null, "human": true only if a person must look at their account, "chips": ["0-3 short follow-up questions the student might tap"]}`;
   try {
     const r = await sample.json(prompt, {modelTier:"quick", cache:false});
     if (!r || typeof r.text !== "string" || !r.text.trim()) return null;
@@ -221,7 +221,7 @@ function pageAsk(){
   const sug = ["My grant hasn't shown up and my bill is due","When do I get my refund?","Why do I have a hold?","Who do I ask, SFS or the Bursar?"];
   return `<div class="page">${navbar("Ask SFS", {always:!empty, right: empty ? "" : `<button class="nav-btn" data-act="clear">Clear</button>`})}
     ${empty ? `${largeTitle("Ask")}
-      <div class="empty-ask"><div class="glyph">${ic("ask")}</div><p class="title3">What's going on?</p><p class="subhead" style="margin:0">Ask in your own words. Answers come from official SFS policy.</p></div>
+      <div class="empty-ask"><div class="glyph">${ic("ask")}</div><p class="title3">What's going on?</p><p class="subhead" style="margin:0">Ask in your own words, in English, Tiếng Việt, Español or 中文. Answers come from official SFS policy.</p></div>
       <div class="suggest">${sug.map(q => `<button data-q="${esc(q)}">${esc(q)}${ic("up", 'style="transform:rotate(45deg)"')}</button>`).join("")}</div>
       <p class="section-foot" style="text-align:center;padding-top:14px">Never type your TUid, SSN or bank numbers.</p>`
     : `<div class="chat" style="padding-top:12px">${st.chat.map(m => m.me ? `<div class="bub me">${esc(m.text)}</div>` : botBubble(m)).join("")}</div><div style="height:70px"></div>`}
@@ -230,13 +230,14 @@ function pageAsk(){
 function botBubble(m){
   if (m.typing) return `<div class="bub bot typing" aria-label="Typing"><span class="dots"><i></i><i></i><i></i></span></div>`;
   if (m.blocked) return `<div class="bub bot"><span style="color:var(--red);font-size:15px">That looks like an ID, SSN or account number, so it wasn't sent. Please remove it.</span></div>`;
-  const a = m.a, ct = a.office ? CONTACT[a.office] : null;
-  const parts = a.text.split(/(?<=[.!?])\s/); const lead = parts.shift(), rest = parts.join(" ");
+  const a = m.a, L = (typeof APP_UI !== "undefined" && APP_UI[m.lg]) || {prep:"This needs a person. Prep my case", more:"More on", en:""};
+  const ct = a.office ? (m.lg && m.lg !== "en" && typeof UI !== "undefined" ? [a.office === "Bursar" ? UI[m.lg].bursar : UI[m.lg].sfs, CONTACT[a.office][1]] : CONTACT[a.office]) : null;
+  const parts = a.text.split(/(?<=[.!?。！？])\s?/); const lead = parts.shift(), rest = parts.join(m.lg === "zh" ? "" : " ");
   const meta = (ct || a.src) ? `<div class="meta-row">${ct ? `<span class="badge b-gray">${esc(ct[0])} · ${ct[1]}</span>` : ""}${a.src ? `<a href="${SRC[a.src].u}" target="_blank" rel="noopener" style="font-size:13px">${esc(SRC[a.src].t)}</a>` : ""}</div>` : "";
-  const more = a.human ? `<button class="btn secondary" style="padding:11px;font-size:15px" data-act="help" data-topic-help="${a.topic || "other"}" data-text="${esc(m.q)}">This needs a person. Prep my case</button>`
-    : (a.topic && CARDS[a.topic] ? `<button class="btn plain" style="padding:4px 0;font-size:15px;justify-content:flex-start" data-topic="${a.topic}">More on ${esc(CARDS[a.topic].title.toLowerCase())}</button>` : "");
+  const more = a.human ? `<button class="btn secondary" style="padding:11px;font-size:15px" data-act="help" data-topic-help="${a.topic || "other"}" data-text="${esc(m.q)}">${esc(L.prep)}</button>`
+    : (a.topic && CARDS[a.topic] ? `<button class="btn plain" style="padding:4px 0;font-size:15px;justify-content:flex-start" data-topic="${a.topic}">${esc(L.more)} ${esc((m.lg && m.lg !== "en" && typeof TOPIC_TR !== "undefined" && TOPIC_TR[m.lg][a.topic] ? TOPIC_TR[m.lg][a.topic].t : CARDS[a.topic].title).toLowerCase())}</button>` : "");
   const chips = (a.chips || []).length ? `<div class="chips" style="padding:0;flex-wrap:wrap">${a.chips.map(c => `<button class="chip" style="font-size:14px;padding:7px 12px;background:var(--fill2)" data-q="${esc(c)}">${esc(c)}</button>`).join("")}</div>` : "";
-  return `<div class="bub bot"><span><span class="lead">${esc(lead)}</span>${rest ? " " + esc(rest) : ""}</span>
+  return `<div class="bub bot"${a.englishOnly ? ' lang="en"' : ""}><span><span class="lead">${esc(lead)}</span>${rest ? (m.lg === "zh" ? "" : " ") + esc(rest) : ""}</span>${a.englishOnly && L.en ? `<span class="caption">${esc(L.en)}</span>` : ""}
     ${a.steps && a.steps.length ? `<ol>${a.steps.map(x => `<li>${esc(x)}</li>`).join("")}</ol>` : ""}
     ${meta}${more}${chips}
   </div>`;
@@ -251,8 +252,9 @@ function ask(q){
   S.stats.asked++; save();
   const t0 = Date.now();
   aiAnswer(q).then(ai => {
-    const a = ai || answerFor(q);
-    setTimeout(() => { st.chat = st.chat.filter(m => !m.typing); if (a.topic) st.lastTopic = a.topic; if (!a.human) { S.stats.solved++; save(); } st.chat.push({a, q}); render(); }, Math.max(0, 550 - (Date.now() - t0)));
+    const lg = typeof detectLang === "function" ? detectLang(q) : "en";
+    const a = ai || (typeof localizeAnswer === "function" ? localizeAnswer(answerFor(q), lg, Brain.EXTRA) : answerFor(q));
+    setTimeout(() => { st.chat = st.chat.filter(m => !m.typing); if (a.topic) st.lastTopic = a.topic; if (!a.human) { S.stats.solved++; save(); } st.chat.push({a, q, lg:ai ? "en" : lg}); render(); }, Math.max(0, 550 - (Date.now() - t0)));
   });
 }
 

@@ -49,7 +49,33 @@ const SYN = [[/\bfin ?aid\b|\bfa\b/g,"financial aid"],[/\bmoney back\b|\bextra m
   [/\bcan'?t (sign up|enroll|register) for (classes|courses)\b|\bblocked from (classes|registering)\b/g,"hold can't register"],
   [/\bkicked out\b|\bdropped (from|out of) (my )?classes\b/g,"dropped hold"],[/\btu ?portal\b/g,"tuportal"],[/\bta(x|xes) (form|return)s?\b/g,"tax"],
   [/\b(mom|dad|mother|father|my parents?)\b/g,"parent"],[/\bstate grant\b/g,"pasg pa state grant"],[/\bloan money\b/g,"loan"]];
-function norm(q){ let t = " " + q.toLowerCase().replace(/[’']/g, "'").replace(/[^a-z0-9$'/ ]+/g, " ") + " "; t = fixTypos(t); for (const [re, r] of SYN) t = t.replace(re, r); return t.replace(/\s+/g, " "); }
+// Vietnamese, Spanish and Chinese keywords → English words the intents understand
+const FOREIGN = [
+  [/xin chào|chào bạn|^chào|^hola\b|^buenas|你好|您好|嗨/g," hello "],
+  [/cảm ơn|cám ơn|gracias|谢谢|多谢/g," thanks "],
+  [/tạm biệt|adiós|再见/g," bye "],
+  [/không khỏe|không ổn|buồn|mệt mỏi|chán nản|no me siento bien|triste|deprimid|不舒服|难过|伤心|心情不好|抑郁/g," not feeling good "],
+  [/căng thẳng|lo lắng|estrés|estresad|preocupad|压力|焦虑|担心/g," stressed "],
+  [/tự tử|muốn chết|suicid|quiero morir|自杀|想死/g," suicide "],
+  [/hoàn tiền|tiền hoàn lại|tiền thừa|reembolso|退款/g," refund "],
+  [/học bổng|becas?\b|奖学金/g," scholarship "],
+  [/khoản vay|tiền vay|vay|préstamos?|贷款/g," loan "],
+  [/hóa đơn|học phí|factura|matrícula|账单|学费/g," bill "],
+  [/trợ cấp|tiền hỗ trợ|subvenci[oó]n|ayuda financiera|ayuda|助学金|补助|资助/g," grant aid "],
+  [/chưa (đến|nhận|có|vào)|no ha llegado|no llegó|todavía no|还没(到|收到|有)|没收到/g," hasn't arrived "],
+  [/bị khóa|khóa tài khoản|retenci[oó]n|bloqueo|冻结|不能注册|无法注册/g," hold "],
+  [/xác minh|verificaci[oó]n|核实|审核|验证/g," verification "],
+  [/cha mẹ|bố mẹ|ba mẹ|phụ huynh|padres|mamá|papá|父母|妈妈|爸爸|家长/g," parent "],
+  [/số điện thoại|gọi điện|gọi|llamar|tel[eé]fono|电话|打给/g," call phone "],
+  [/(tôi )?(phải trả|nợ) bao nhiêu|cu[aá]nto debo|cu[aá]nto tengo que pagar|欠多少|要付多少/g," how much do i owe "],
+  [/khi nào|cu[aá]ndo|什么时候|何时/g," when "],
+  [/tại sao|por qu[eé]|为什么/g," why "],
+  [/hỏi sfs hay bursar|sfs o (al )?bursar|sfs 还是 bursar|sfs还是bursar/g," sfs or bursar who do i ask "],
+  [/trả góp|plan de pago|a plazos|分期/g," payment plan "],
+  [/hạn chót|hạn đóng|fecha l[ií]mite|vence|截止|到期/g," due date "],
+];
+function pre(q){ let t = q.toLowerCase(); for (const [re, r] of FOREIGN) t = t.replace(re, r); return t; }
+function norm(q){ let t = " " + pre(q).replace(/[’']/g, "'").replace(/[^a-z0-9$'/ ]+/g, " ") + " "; t = fixTypos(t); for (const [re, r] of SYN) t = t.replace(re, r); return t.replace(/\s+/g, " "); }
 
 // ---------- intents: patterns with weights (best score wins, not first match) ----------
 const I = {
